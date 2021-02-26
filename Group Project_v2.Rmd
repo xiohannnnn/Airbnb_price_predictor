@@ -1,0 +1,704 @@
+---
+title: "Group Project"
+author: "Ng Siong Kien S2021587 & Lau Xio Han S2008895"
+date: "1/1/2021"
+output: html_document
+---
+
+## **Regression of Singapore Airbnb Price and Classification of Singapore Airbnb Room Type**
+
+### **Part 1: Introduction**
+
+#### **1.1 Introduction of Airbnb**
+
+Airbnb Inc. is an American vacation rental online marketplace company based in San Francisco, California, United States. Airbnb keeps and provides a marketplace which is reachable to users through its online website or via its mobile app. By utilizing Airbnb, users are able to lease lodging, primarily home stay, depends on their purposes or register their properties for rental. Airbnb itself does not own any of the listed properties; instead, it profits by collecting a brokerage fee and service fee percentage from both the host and guest per booking transactions.
+
+#### **1.2 Project Objective**
+
+Our project focuses on Airbnb services in Singapore. Though physically small in size of area, Singapore has been Southeast Asia's most modern city for over a century. For many travelers, Singapore is their first introduction to Southeast Asia as the city blends Chinese, Malay, Indian and English cultures and religions. Therefore, with the vast tourism demands from travelers, the Airbnb services here is blooming in a rapid speed.
+
+First of all, we want to predict future price of Airbnb listings in Singapore by using regression, a supervised machine learning technique. The regression model chosen in this project is linear regression model. The prediction of future price can aid in the quality of decision-making process for Airbnb company to carry out specific promotion. Besides that, travelers can plan their vacation in advance with the accurate prediction results of Airbnb listed properties price.
+
+Next, we want to predict which class (room type) of Airbnb listings in Singapore belongs to based on the data with 9 features and 1 output by using classification, a supervised machine learning technique as well. Classification of room type can help guest to ensure the accommodation information is accurate which is important for their customer experience.
+
+### **Part 2: Getting Data**
+
+The Singapore Airbnb listings data set is available on Inside Airbnb website in csv file format. The link to the website is http://insideairbnb.com/get-the-data.html. The data was collected on 26th October 2020 according to the website. There is 7907 sample but some missing data present in the data set as well. The purpose of the data set is to have information of all Airbnb listings in Singapore distributed across 5 regions which are Central Region, North Region, North-East Region, East Region and West Region, and also their reviews rated by guests.
+
+R package required for the project is loaded.
+```{r}
+library(tidyverse)
+library(kableExtra)
+library(plotly)
+library(caret)
+library(car)
+library(corrplot)
+library(randomForest)
+library(tm)
+library(wordcloud)
+library(caTools)
+library(cowplot)
+library(rpart)
+```
+
+Data set in csv format titled Singapore Airbnb Listings is read and assigned as airbnb.
+```{r}
+airbnb <- read.csv("C:/Users/User/Desktop/Singapore Airbnb Listings.csv")
+```
+
+First 20 rows of airbnb data are viewed.
+```{r}
+head(airbnb,20) %>%
+  kable() %>%
+  kable_styling()
+```
+
+Object-oriented classification of airbnb data is determined.
+```{r}
+class(airbnb)
+typeof(airbnb)
+```
+
+Dimension of airbnb data is determined.
+```{r}
+dim(airbnb)
+```
+**It is a data frame with 7907 rows and 16 columns.**
+
+Content of airbnb data is determined.
+```{r}
+glimpse(airbnb)
+```
+
+Structure of airbnb data is determined.
+```{r}
+str(airbnb)
+```
+
+Summary of airbnb data is determined.
+```{r}
+summary(airbnb)
+```
+
+Number of attributes in airbnb data is determined.
+```{r}
+length(airbnb)
+```
+**A total of 16 attributes are presented in airbnb data.**
+
+Every attributes of airbnb data are determined.
+```{r}
+names(airbnb)
+```
+**The attributes of airbnb data contained id, name, host_id, host_name, neighbourhood_group, neighbourhood, latitude, longitude, room_type, price, minimum_nights, number_of_reviews, last_review, reviews_per_month, calculated_host_listings_count and availability_365.**
+
+### **Part 3: Data Preprocessing**
+
+Amount of missing value in airbnb data is calculated.
+```{r}
+sum(is.na(airbnb))
+```
+**A total of 2758 missing values are presented in airbnb data.**
+
+Attributes of airbnb data that contain missing values are located.
+```{r}
+colSums(is.na(airbnb))
+```
+**All 2758 missing values are located under reviews_per_month column.**
+
+Attributes of airbnb data are renamed to have a clearer view of the data.
+
+Unwanted attributes of airbnb data such as ID, Host_name and Last_review are removed.
+
+Remaining attributes of airbnb data are arranged according to its significance level.
+
+Airbnb price which is equal to 0 is filtered since price can't be 0 (faulty record). They would make predictive models significantly weaker.
+
+All missing values in Review_per_month column are replaced with value 0.
+
+Airbnb data is sorted ascendingly by Room_type, Price, Region and Neighborhood.
+```{r}
+airbnb <- airbnb %>%
+  rename(ID=id,
+         Name = name,
+         Host_ID = host_id,
+         Host_name = host_name, 
+         Region = neighbourhood_group,
+         Neighbourhood = neighbourhood,
+         Latitude = latitude,
+         Longitude = longitude,
+         Room_type = room_type,
+         Price = price,
+         Minimum_night = minimum_nights,
+         Review_count = number_of_reviews,
+         Last_review = last_review,
+         Review_per_month = reviews_per_month,
+         Host_listing_count = calculated_host_listings_count,
+         Day_available_per_year = availability_365) %>%
+  select(Name, 
+         Room_type, 
+         Price,
+         Region,
+         Neighbourhood,
+         Latitude,
+         Longitude,
+         Host_ID,
+         Minimum_night,
+         Review_count, 
+         Review_per_month,
+         Host_listing_count,
+         Day_available_per_year) %>%
+  filter (Price > 0) %>%
+  mutate(Review_per_month = replace_na(Review_per_month,0)) %>%
+  arrange(Room_type,Price,Region,Neighbourhood)
+```
+
+Room_type, Region and Neighbourhood attributes are set as factor instead of character as in default string value of data frame in R is set as character.
+```{r}
+airbnb[c("Room_type","Region","Neighbourhood")] <- map(airbnb[c("Room_type","Region","Neighbourhood")], as.factor)
+```
+
+Sanity check of missing values remained in airbnb data is performed.
+```{r}
+sum(is.na(airbnb))
+```
+**No missing values are remaining in airbnb data.**
+
+First 20 rows of cleaned airbnb data are viewed.
+```{r}
+head(airbnb,20) %>%
+  kable() %>%
+  kable_styling()
+```
+
+Dimension of cleaned airbnb data is determined.
+```{r}
+dim(airbnb)
+```
+**It is now a data frame with 7906 rows and 13 columns.**
+
+Content of cleaned airbnb data is determined.
+```{r}
+glimpse(airbnb)
+```
+
+Structure of cleaned airbnb data is determined.
+```{r}
+str(airbnb)
+```
+
+Summary of cleaned airbnb data is determined.
+```{r}
+summary(airbnb)
+```
+
+### **Part 4: Exploratory Data Analysis / Data Visualization**
+
+Distribution of Singapore Airbnb price is presented in boxplot graph.
+```{r}
+# Store the graph
+box_plot <- ggplot(airbnb, aes(y = Price))
+# Add the geometric object box plot
+box_plot +
+    geom_boxplot() +coord_flip()+ggtitle("Overall Price Boxplot")
+```
+
+**75% of Singapore Airbnb set their rental price below SGD199.**
+
+```{r}
+# Store the graph
+box_plot <- ggplot(airbnb, aes(x = Region,y = Price))
+# Add the geometric object box plot
+box_plot +
+    geom_boxplot() +coord_flip()+ggtitle("Boxplot of Price by Region")
+```
+
+**The highest Singapore Airbnb price is located at West Region and Central Region. All the price of Singapore Airbnb at North Region are less than SGD 1250.**
+
+Relationship of Room Type and Price is presented.
+```{r}
+freq_room <- airbnb %>%
+  count(Room_type)
+freq_room <- freq_room %>% 
+  arrange(desc(Room_type)) 
+options(repr.plot.width=14, repr.plot.height=6)
+plot1 <- ggplot(freq_room, aes(x="", y=n, fill=Room_type)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0)+theme_void() +
+  geom_text(aes(label = paste(round(n / sum(n) * 100,
+  1), "%")),colour = 'white',position =
+  position_stack(vjust = 0.5))+
+  ggtitle("Pie chart of Room Types") 
+avg_price_host <- airbnb %>%
+  group_by(Room_type) %>%
+  summarise(avg_price= mean(Price),.groups ='drop') 
+plot2 <-ggplot(avg_price_host, aes(x=reorder(Room_type, -avg_price), y=avg_price, fill="violet"))+
+  geom_col(aes(fill=avg_price),width = 1)+
+  ggtitle("Airbnb in each region")+coord_flip()+
+  scale_y_continuous(limits=c(0, 300))+
+  geom_label(mapping = aes(label = round(avg_price,
+  1)), size = 4, fill = "#F5FFFA", fontface = "bold") 
+plot_grid(plot1, plot2, ncol=2, nrow=1,rel_widths = c(1, 1))
+```
+
+**More than half of the room type in Singapore are entire home/apt and only 5% of room type is shared room.**
+
+**The average price for shared room is SGD 65.7, private room is SGD 110.9 and entire home is SGD 227.1.**
+
+Relationship of Region and Price is presented.
+```{r}
+freq_region <- airbnb %>%
+  count(Region)
+freq_region <- freq_region %>% 
+  arrange(desc(Region)) 
+options(repr.plot.width=14, repr.plot.height=6)
+plot2_1 <- ggplot(freq_region, aes(x="", y=n, fill=Region)) +
+  geom_bar(stat="identity", width=1) +
+  coord_polar("y", start=0)+theme_void() + geom_text(aes(label = paste(round(n / sum(n) * 100, 1), "%")),colour = 'white',position = position_stack(vjust = 0.5))+ggtitle("Pie chart of Region Types")
+avg_price_region <- airbnb %>%
+  group_by(Region) %>%
+  summarise(avg_price= mean(Price),.groups ='drop') 
+plot2_2 <-ggplot(avg_price_region, aes(x=reorder(Region, -avg_price), y=avg_price, fill="violet"))+
+  geom_col(aes(fill=avg_price),width = 1) +coord_flip()+
+     geom_label(mapping = aes(label = round(avg_price, 1)), size = 4, fill = "#F5FFFA", fontface = "bold")+ scale_y_continuous(limits=c(0, 300))
+plot_grid(plot2_1, plot2_2, ncol=2, nrow=1,rel_widths = c(1, 1))
+```
+
+**79.8% (6309 units) Singapore Airbnb is located at Central Region while Airbnb at North Region is the least with only 204 units.**
+
+**The average price for North-East region is the cheapest which is SGD 99.8 while the average price for West Region and Central Region are the most expensive which are SGD 176 and SGD 176.7.**
+
+Top 10 most expensive and cheapest Singapore Airbnb neighbourhood location are identified.
+```{r}
+top_10_neighbourhood <- aggregate(list(airbnb$Price), list(airbnb$Neighbourhood, airbnb$Region), mean)
+colnames(top_10_neighbourhood) <- c("Neighbourhood", "Region","Average_price_per_neighborhood")
+top_10_neighbourhood <- top_10_neighbourhood[order(top_10_neighbourhood$Average_price_per_neighborhood),]
+top_10_neighbourhood <- tail(top_10_neighbourhood, 12)
+top_10_neighbourhood <- head(top_10_neighbourhood, 10)
+r <- c()
+for(i in 10:1){r <- c(r, i)}
+row.names(top_10_neighbourhood) <- r
+top_10_neighbourhood
+```
+
+```{r}
+options(repr.plot.width=15, repr.plot.height=11)
+plot3 <- ggplot(data = top_10_neighbourhood, mapping = aes(x = reorder(Neighbourhood, -Average_price_per_neighborhood), y = Average_price_per_neighborhood)) +
+     geom_bar(stat = "identity", mapping = aes(fill = Region, color = Region), alpha = .8, size = 1.5) +
+  coord_flip() +
+     geom_label(mapping = aes(label = round(Average_price_per_neighborhood, 1)), size = 4, fill = "#F5FFFA", fontface = "bold") + ggtitle("Top 10 most expensive Airbnb neighbourhood in Singapore")
+plot3
+```
+
+**Most of the expensive Singapore Airbnb are located at Central Region and the only neighbourhood which has average price > SGD 400 is at Marina South.**
+
+```{r}
+top_10_neighbourhood_2 <- aggregate(list(airbnb$Price), list(airbnb$Neighbourhood, airbnb$Region), mean)
+colnames(top_10_neighbourhood_2) <- c("Neighbourhood","Region", "Average_price_per_neighborhood")
+top_10_neighbourhood_2 <- top_10_neighbourhood_2[order(top_10_neighbourhood_2$Average_price_per_neighborhood),]
+top_10_neighbourhood_2 <- head(top_10_neighbourhood_2, 10)
+r <- c()
+for(i in 10:1){r <- c(r, i)}
+row.names(top_10_neighbourhood_2) <- r
+top_10_neighbourhood_2
+```
+
+```{r}
+options(repr.plot.width=15, repr.plot.height=11)
+plot4 <- ggplot(data = top_10_neighbourhood_2, mapping = aes(x = reorder(Neighbourhood, -Average_price_per_neighborhood), y = Average_price_per_neighborhood)) +
+     geom_bar(stat = "identity", mapping = aes(fill = Region, color = Region), alpha = .8, size = 1.5) +
+     geom_label(mapping = aes(label = round(Average_price_per_neighborhood, 1)), size = 4, fill = "#F5FFFA", fontface = "bold") +
+     coord_flip() +
+     ggtitle("Top 10 cheapest Airbnb neighbourhood in Singapore")
+plot4
+```
+
+**Travelers can find cheap Airbnb at the neighbourhood across North-East Region, North Region and West Region, especially in Western Water Catchment neighbourhood which has average price of SGD 46.2 only.**
+
+```{r}
+df_map <- aggregate(list(airbnb$Price), list(airbnb$Day_available_per_year), mean)
+colnames(df_map) <- c("Availability", "Average_price_per_availability")
+ggplot(data = df_map, mapping = aes(y = Average_price_per_availability, x = Availability, color = Average_price_per_availability)) +
+    theme_minimal() +
+    scale_fill_identity() +
+    geom_line(mapping = aes(color = Average_price_per_availability)) +
+    ggtitle("Relationship between availability and price of Airbnb")
+```
+
+**The average price for 82 days availability is the highest which is SGD 830 while the average price for 185 days availability is SGD 21.**
+
+How Airbnb is distributed on Singapore Map is presented.
+```{r}
+ggplot(data = airbnb, mapping = aes(x = Latitude, y = Longitude, color = Region)) +
+    theme_minimal() +
+    scale_fill_identity() +
+    geom_point(mapping = aes(color = Region), size = 3) +
+    ggtitle("Airbnb in Singapore")
+```
+
+**Longitude and latitude aid in plotting the map and the distribution of Airbnb across the region is shown.**
+
+Location of Airbnb with price < SGD 200 is presented.
+```{r}
+df_map_1 <- airbnb %>%
+  filter(Price <200)
+ggplot(data = df_map_1, mapping = aes(x = Latitude, y = Longitude, color = Price)) +
+    theme_minimal() +
+    scale_fill_identity() +
+    geom_point(mapping = aes(color = Price), size = 3) +
+    ggtitle("Location of Airbnb with price < SGD 200")+scale_color_gradient(low="blue", high="red")
+```
+
+Location of Airbnb with price > SGD 200 is presented.
+```{r}
+df_map2 <- airbnb %>%
+  filter(Price >200)
+
+ggplot(data = df_map2, mapping = aes(x = Latitude, y = Longitude, color = Price)) +
+    theme_minimal() +
+    scale_fill_identity() +
+    geom_point(mapping = aes(color = Price), size = 3) +
+    ggtitle("Location of Airbnb with price > SGD 200")+scale_color_gradient(low="blue", high="red")
+```
+
+Word cloud of Airbnb Name is presented
+```{r}
+text <- airbnb$Name
+docs <- Corpus(VectorSource(text))
+docs <- docs %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+docs <- tm_map(docs, content_transformer(tolower))
+docs <- tm_map(docs, removeWords, stopwords("english"))
+dtm <- TermDocumentMatrix(docs) 
+matrix <- as.matrix(dtm) 
+words <- sort(rowSums(matrix),decreasing=TRUE) 
+df <- data.frame(word = names(words),freq=words)
+set.seed(1234) # for reproducibility 
+wordcloud(words = df$word, freq = df$freq, min.freq = 1,max.words=100, random.order=FALSE, rot.per=0.35,colors=brewer.pal(8, "Dark2"))
+```
+
+**Airbnb name often use 'near', 'mrt', 'city' or 'min' as the words help in indicating the convenience for the transportation. 'room', 'bedroom', 'spacious', 'cosy','cozy' are also used to describe the accommodation that can catch attention.**
+
+Distribution of host listing count is presented.
+```{r}
+paste('There are' ,length(unique(airbnb$Host_ID)), 'Hosts for Singapore Airbnb.')
+airbnb_host <-distinct(airbnb, Host_ID, .keep_all = TRUE)
+
+breaks <- c(0,25,50,75,100,125,150,175,200,225,250,275,300)
+# specify interval/bin labels
+tags <- c("[0-25)","[25,50)","[50-75)","[75,100)", "[100-125)", "[125,150)","[150-175)", "[175-200)","[200-225)", "[225,250)","[250-275)", "[275-300)")
+# bucketing values into bins
+  group_tags <- cut(airbnb_host$Host_listing_count, 
+                  breaks=breaks, 
+                  include.lowest=TRUE, 
+                  right=FALSE, 
+                  labels=tags)
+
+ggplot(data = as_tibble(group_tags), mapping = aes(x=value)) + 
+  geom_bar(fill="bisque",color="white") + 
+  stat_count(geom="text", aes(label=..count..), vjust=-0.5) +
+  labs(x='Host Listing Count') +
+  ggtitle('Host Listing Count')+
+  theme_minimal() 
+
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+
+paste('Most number of host listing in Singapore is ' ,getmode(airbnb_host$Host_listing_count),'while Maximum host listing in Singapore is' ,max(airbnb_host$Host_listing_count),'.')
+```
+
+**98% hosts are hosting less than 25 Airbnb.**
+
+Correlation plot is presented.
+```{r}
+#One Hot encoding for room type, region and neighbourhood
+df_ohe <- airbnb %>%
+  select(Room_type, Region,Neighbourhood)
+
+dummy <- dummyVars(" ~ .", data=df_ohe)
+newdata <- data.frame(predict(dummy, newdata = df_ohe))
+df2 <- merge(airbnb, newdata, by=0)
+names(newdata)
+```
+
+```{r}
+df_cor <- df2 %>%
+select(Price, Latitude, Longitude, Minimum_night, Review_count, Review_per_month, Host_listing_count, Day_available_per_year, Room_type.Entire.home.apt, Room_type.Private.room, Room_type.Shared.room, Region.Central.Region, Region.East.Region, Region.North.East.Region, Region.North.Region, Region.West.Region)
+
+M <-cor(df_cor)
+corrplot.mixed(M)
+```
+
+**Based on the correlation plot, there is a moderate positive linear relationship (0.36) between host listing count and room type (entire home).Host listing count is having moderate negative linear relationship (-0.33) with room type (private room).**
+
+### **Part 5: Machine Learning Model: Regression**
+
+#### **5.1 Linear Regression**
+
+Name, Latitude, Longitude and Host ID attributes are removed for regression and new airbnb data without Name column is assigned as airbnb_lm.
+```{r}
+airbnb_lm <- airbnb %>%
+  select(-c(Name,Latitude,Longitude,Host_ID))
+```
+
+Train-test split is carried out with 70-30 split ratio.
+```{r}
+set.seed(1000)
+for_splitting <- sample.split(Y = airbnb_lm$Price, SplitRatio = 0.7) 
+airbnb_train <- subset(airbnb_lm, for_splitting == TRUE)
+airbnb_test <- subset(airbnb_lm, for_splitting == FALSE)
+```
+
+Sanity check of correct train-test split is performed.
+```{r}
+nrow(airbnb_train) + nrow(airbnb_test) == nrow(airbnb_lm)
+```
+
+Due to the presence of extreme price outliers, 2 train sets are created.
+
+All price points include outliers are assigned as airbnb_train.
+
+Price points exclude outliers are assigned as airbnb_train_without_outlier.
+```{r}
+airbnb_train_without_outlier <- airbnb_train %>% 
+  filter(Price <= quantile(airbnb_train$Price, 0.9) & 
+           Price >= quantile(airbnb_train$Price, 0.1))
+```
+
+Price variance of train_set and train_set_without_outlier are calculated.
+```{r}
+var(airbnb_train$Price)
+var(airbnb_train_without_outlier$Price)
+```
+**Train set without outlier has significantly lower variance as compared to train set with extreme outliers.**
+
+Due to the presence of extreme price outliers, 2 test sets are created.
+
+All price points include outliers are assigned as airbnb_test.
+
+Price points exclude outliers are assigned as airbnb_test_without_outlier.
+```{r}
+airbnb_test_without_outlier <- airbnb_test %>% 
+  filter(Price <= quantile(airbnb_test$Price, 0.9) & Price >= quantile(airbnb_test$Price, 0.1))
+```
+
+Price variance of test set and test set without outlier are calculated.
+```{r}
+var(airbnb_test$Price)
+var(airbnb_test_without_outlier$Price)
+```
+**Test set with outlier has significantly lower variance as compared to test set with extreme outliers.**
+
+First linear regression model is modeled.
+```{r}
+first_model <- lm(Price ~ .,data = airbnb_train)
+#The results are summarized.
+summary(first_model)
+```
+**First model is not so good. Median residual error is -32.1, while it should be near 0.**
+
+First linear regression model is plotted.
+```{r}
+plot(first_model)
+```
+
+**First linear regression model does not satisfy linear model assumptions as shown clearly by normal Q-Q plot(normal Q-Q plot should be straight line).**
+
+Since first model seems bad, it will not be used to predict new prices.
+
+Second linear regression model is modeled.
+
+Logarithmic transformation is introduced in second linear regression model and airbnb_train_without_outlier is used so that outliers are removed.
+```{r}
+second_model <- lm(log(Price) ~ ., data = airbnb_train_without_outlier)
+#The results are summarized.
+summary(second_model) 
+```
+**Second model is an improvement. Median residual error is now -0.04794, which is far better than -32.1 from the first model.**
+
+Second linear regression model is plotted.
+```{r}
+plot(second_model)
+```
+
+**Normal Q-Q plot for second model looks much better than the first model.**
+
+Backward stepwise model using first linear regression model is modeled.
+```{r}
+backward_first_model <- step(first_model, direction = 'backward')
+```
+
+The results are summarized.
+```{r}
+summary(backward_first_model)
+```
+**Backward stepwise model using first model is not so good. Median residual error is -32.6, while it should be near 0.**
+
+```{r}
+vif(backward_first_model) %>%
+  kable() %>%
+  kable_styling()
+```
+
+RMSE of backward stepwise model using first linear regression model is calculated.
+```{r}
+rmse_first_model <- sqrt(mean((residuals(backward_first_model)^2))) 
+print(rmse_first_model)
+```
+**RMSE of backward stepwise model using first model is 321.2964, not so good as well as it should be close 0.**
+
+Backward stepwise model using second linear regression model is modeled.
+```{r}
+backward_second_model <- step(second_model, direction = 'backward')
+```
+
+The results are summarized.
+```{r}
+summary(backward_second_model)
+```
+**Backward stepwise model using second model is an improvement. Median residual error is now -0.04794, which is far better than -32.6 from the first model.**
+
+```{r}
+vif(backward_second_model) %>%
+  kable() %>%
+  kable_styling()
+```
+
+RMSE of backward stepwise model using second linear regression model is calculated.
+```{r}
+rmse_second_model <- sqrt(mean((residuals(backward_second_model)^2))) 
+print(rmse_second_model)
+```
+**RMSE of backward stepwise model using second model is 0.3767803, a better model compared to backward stepwise model using first model which is 321.2964 as lower values of RMSE indicate better fit.**
+
+Prices for testing set without outliers are predicted.
+```{r}
+predict_regression <- predict(second_model, newdata = airbnb_test_without_outlier)
+predict_regression <- exp(predict_regression)
+RMSE_regression <- sqrt(mean( (airbnb_test_without_outlier$Price - predict_regression)**2 ))
+print(RMSE_regression)
+```
+
+The sum of squared deviations of actual values from predicted values is calculated.
+```{r}
+SSE <- sum((airbnb_test_without_outlier$Price - predict_regression)**2)
+print(SSE)
+```
+
+The sum of squared deviations of predicted values from the mean value is calculated.
+```{r}
+SSR <- sum((predict_regression - mean(airbnb_test_without_outlier$Price)) ** 2)
+print(SSR)
+```
+
+R-squared, a statistical measure of how close the data are to the fitted regression line, is calculated.
+```{r}
+R2 <- 1 - SSE/(SSE + SSR)
+print(R2)
+```
+
+Scatter plot of observed and predicted value group by Room type is plotted.
+```{r}
+regression_results <- tibble(
+  obs = airbnb_test_without_outlier$Price,
+  pred = predict_regression,
+  diff = pred - obs,
+  abs_diff = abs(pred - obs),
+  type = airbnb_test_without_outlier$Room_type)
+```
+
+```{r}
+regression_plot <- regression_results %>% 
+  ggplot(aes(obs, pred)) +
+  geom_point(alpha = 0.1) +
+  scale_x_log10() +
+  scale_y_log10() +
+  ggtitle("Observed vs predicted",
+          subtitle = "Linear regression model") + 
+  geom_abline(slope = 1, intercept = 0, color = "blue", linetype = 2)  +
+  facet_wrap(~type)
+```
+
+```{r}
+ggplotly(regression_plot)
+```
+
+### **Part 6: Machine Learning Model: Classification**
+
+#### **6.1 Data Partition**
+
+Data is split into training set and testing set.
+```{r}
+df_cor2 <- df2 %>%
+select(Price, Latitude, Longitude, Minimum_night, Review_count, Review_per_month, Host_listing_count, Day_available_per_year, Room_type, Region)
+df_cor2[c("Room_type","Region")] <- map(df_cor2[c("Room_type","Region")], as.factor)
+intrain <- createDataPartition(y = df_cor2$Room_type, p = 0.67, list = FALSE)
+training <- df_cor2[intrain,]
+testing <- df_cor2[-intrain,]
+```
+
+#### **6.2 Classification tree with rpart()**
+
+```{r}
+set.seed(12345)
+# Training with classification tree model
+airbnb.rpart <- rpart(Room_type ~ ., data=training, method="class")
+print(airbnb.rpart, digits = 3)
+printcp(airbnb.rpart) # display the results
+plotcp(airbnb.rpart) # visualize cross-validation results
+summary(airbnb.rpart) 
+```
+
+#### **6.3 Prediction and Evaluation**
+
+```{r}
+# Predict the testing dataset with the trained model 
+predictions1 <- predict(airbnb.rpart, testing, type = "class")
+
+# Evaluation: Accuracy and other metrics
+confusionMatrix(predictions1, testing$Room_type)
+```
+
+**Overall accuracy for this classification model is 0.8551.**
+
+#### **6.4 Random Forest**
+```{r}
+set.seed(12345)
+# Training the data using Random forest model
+airbnb.rf <- randomForest(Room_type ~. , data=training, importance = TRUE)
+
+airbnb.rf
+# Predict the testing dataset with the trained model
+predictions2 <- predict(airbnb.rf, testing, type = "class")
+
+# Evaluation: Accuracy and other metrics
+confusionMatrix(predictions2, testing$Room_type)
+```
+
+Number of tree is 500 and there are 3 variables tried at each split.
+
+```{r}
+important <- importance(airbnb.rf, type=1 ) 
+Important_Features <- data.frame(Feature = row.names(important), Importance = important[, 1])
+
+plot_imp <- ggplot(Important_Features, 
+    aes(x= reorder(Feature,
+Importance) , y = Importance) ) +
+geom_bar(stat = "identity") +
+coord_flip() +
+theme_light(base_size = 13) +
+xlab("") + 
+ylab("Importance")+
+ggtitle("Important Features in Random Forest Model for\n Singapore airbnb data") +
+theme(plot.title = element_text(size=13))
+
+plot_imp
+```
+
+**The accuracy of Random forest model is 0.9015.**
+
+**To conclude, random forest model performs better than classification tree to predict the room type based on the features when comparing the accuracy score. The top 3 most important features to predict the room type in this random forest model are Price, minimum night and host listing count. This model can aid to help to ensure the room type is correct according to the input information by host so guest can be more worry free about their accommodation and thus improve customer experience. **
